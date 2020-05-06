@@ -3,6 +3,8 @@ import { fetchQuery } from '../../request-manager'
 //import { configuration } from '../../config/config'
 import { Server } from '../server'
 import { routerV1 as routerclient } from '../../routers/client-router'
+
+var amqp = require('amqplib/callback_api');
 // Código de operación, define el tipo de transacción y puede ser uno de los siguientes
 // 01, retiro
 // 02, depósito
@@ -133,13 +135,42 @@ class ClientServer extends Server {
 
   //enviar la orden al banco
   async enviarTransaccion() {
+    console.log("ENVIAR TRANSACCION", this.Data)
+    const info = this.Data;
+    
+
+    
     var char1 = this.Data.tarjeta.charAt(0);
     switch(char1) {
       case "1":
         console.log("Enviando al banco A puerto 3000")
-        await fetchQuery('http://18.188.14.222:3000/', 'POST', this.Data).then(res_be => {
-          this.printMsg(res_be)
-        })        
+        // await fetchQuery('http://18.188.14.222:3000/', 'POST', this.Data).then(res_be => {
+        //   this.printMsg(res_be)
+        // })     
+        amqp.connect('amqp://3.21.165.119:5672', function(error0, connection) {
+          if (error0) {
+              throw error0;
+          }
+          connection.createChannel(function(error1, channel) {
+              if (error1) {
+                  throw error1;
+              }
+              var queue = 'task_queue';
+              var msg = JSON.stringify(info);
+
+              channel.assertQueue(queue, {
+                  durable: true
+              });
+              channel.sendToQueue(queue, Buffer.from(msg), {
+                  persistent: true
+              });
+              console.log(" [x] Sent '%s'", msg);
+          });
+          setTimeout(function() {
+              connection.close();
+              process.exit(0)
+          }, 500);
+      });   
         break;
       case "2":
         console.log("Enviando al banco B puerto 3001")
@@ -178,7 +209,17 @@ class ClientServer extends Server {
         })  
         break;
     }
+
+
+
   }
+
+
+
+
+
+ 
+
 
 
 }
